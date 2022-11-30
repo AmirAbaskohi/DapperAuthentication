@@ -36,6 +36,17 @@ namespace DapperAuthentication.Controllers
             return Ok();
         }
 
+        [HttpPost, Route("login")]
+        public async Task<IActionResult> Login(LoginModel loginModel)
+        {
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            var user = await connection.QueryFirstAsync<User>("SELECT * FROM [User] WHERE UserName=@UserName", new { UserName = loginModel.UserName });
+            bool isValidPassword = BCrypt.Net.BCrypt.Verify(loginModel.Password, user.PasswordHash);
+            if (isValidPassword)
+                return Ok();
+            return Unauthorized();
+        }
+
         [HttpGet, Route("getUsers")]
         public async Task<ActionResult<List<UserModel>>> GetAllUsers()
         {
