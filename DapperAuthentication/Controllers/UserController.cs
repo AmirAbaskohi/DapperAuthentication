@@ -3,6 +3,11 @@ using DapperAuthentication.Enitities;
 using Microsoft.AspNetCore.Mvc;
 using System.Data.SqlClient;
 using Dapper;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace DapperAuthentication.Controllers
 {
@@ -42,12 +47,40 @@ namespace DapperAuthentication.Controllers
             using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
             var user = await connection.QueryFirstAsync<User>("SELECT * FROM [User] WHERE UserName=@UserName", new { UserName = loginModel.UserName });
             bool isValidPassword = BCrypt.Net.BCrypt.Verify(loginModel.Password, user.PasswordHash);
-            if (isValidPassword)
-                return Ok();
-            return Unauthorized();
+            if (!isValidPassword)
+                return Unauthorized();
+
+            var issuer = _config["Jwt:Issuer"];
+            var audience = _config["Jwt:Audience"];
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
+            var jwtTokenHandler = new JwtSecurityTokenHandler();
+
+            var key = Encoding.ASCII.GetBytes(_config["Jwt:Key"]);
+
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                    {
+                        new Claim("Id", "1"),
+                        new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+                        new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                    }
+                ),
+                Expires = DateTime.UtcNow.AddHours(6),
+                Audience = audience,
+                Issuer = issuer,
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha512Signature)
+            };
+            var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+            var jwtToken = jwtTokenHandler.WriteToken(token);
+            return Ok(jwtToken);
         }
 
         [HttpGet, Route("getUsers")]
+        [Authorize]
         public async Task<ActionResult<List<UserModel>>> GetAllUsers()
         {
             using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
