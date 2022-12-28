@@ -1,0 +1,12 @@
+﻿USE DeveloperTest;
+
+CREATE TABLE [dbo].[AmirhosseinMessage]
+(
+    [Id] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+    [Title] NVARCHAR(256) NOT NULL,
+    [Body] NTEXT NOT NULL,
+    [Status] TINYINT NOT NULL,
+    [CreatedBy] UNIQUEIDENTIFIER NOT NULL,
+    [CreatedOn] DATETIME NOT NULL,
+    FOREIGN KEY (CreatedBy) REFERENCES AmirhosseinUser(Id) ON DELETE CASCADE
+);
